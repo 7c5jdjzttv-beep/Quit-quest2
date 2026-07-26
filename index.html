@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>Untitled</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="/style.css">
+  </head>
+
+  <body>
+    <!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>離職倒數 Quit Quest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @keyframes punch-hit {
+      0% { transform: scale(1) rotate(0deg); }
+      25% { transform: scale(0.9) rotate(-10deg); }
+      75% { transform: scale(1.1) rotate(10deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+    .animate-hit { animation: punch-hit 0.15s ease-in-out; }
+    
+    @keyframes Muyu-bounce {
+      0% { transform: scale(1); }
+      50% { transform: scale(0.85) rotate(-5deg); }
+      100% { transform: scale(1); }
+    }
+    .animate-muyu { animation: Muyu-bounce 0.1s ease-in-out; }
+
+    .stamp-anim {
+      animation: stamp-bounce 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes stamp-bounce {
+      0% { transform: scale(3) rotate(-15deg); opacity: 0; }
+      100% { transform: scale(1) rotate(-12deg); opacity: 0.9; }
+    }
+
+    @keyframes float-up {
+      0% { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(-50px) scale(1.2); }
+    }
+    .animate-float { animation: float-up 0.8s ease-out forwards; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex justify-center items-start sm:py-8">
+
+  <div id="app" class="w-full max-w-md bg-slate-800 min-h-screen sm:min-h-[844px] sm:rounded-3xl shadow-2xl flex flex-col justify-between relative overflow-hidden border border-slate-700">
+    
+    <header class="p-4 bg-slate-900/80 backdrop-blur border-b border-slate-700 flex justify-between items-center sticky top-0 z-10">
+      <div>
+        <h1 class="text-xl font-black tracking-wider text-rose-500 flex items-center gap-2">
+          <i class="fa-solid fa-fire"></i> 離職倒數 <span class="text-xs text-slate-400 font-normal">Quit Quest</span>
+        </h1>
+        <p class="text-xs text-slate-400 mt-0.5">每一份委屈，都值得被記錄。</p>
+      </div>
+      <div class="text-right flex items-center gap-3">
+        <div>
+          <span class="text-xs text-slate-400 block">當前進度</span>
+          <div class="text-lg font-extrabold text-amber-400">{{ totalPoints }} / 60 點</div>
+        </div>
+        <button @click="resetGame" title="重置資料" class="text-slate-500 hover:text-rose-400 p-1 transition">
+          <i class="fa-solid fa-rotate-left text-sm"></i>
+        </button>
+      </div>
+    </header>
+
+    <main class="flex-1 p-4 overflow-y-auto pb-24">
+      
+      <div v-if="currentTab === 'home'" class="space-y-4">
+        <div class="bg-gradient-to-br from-emerald-900/40 to-slate-800 p-5 rounded-2xl border border-emerald-500/30 relative overflow-hidden">
+          <div class="flex justify-between items-start mb-2">
+            <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">💰 本月預估總所得</span>
+            <div class="space-x-2">
+              <button @click="editSalary" class="text-xs text-slate-400 hover:text-white"><i class="fa-solid fa-pen"></i> 底薪</button>
+              <button @click="addBonus" class="text-xs text-amber-400 hover:text-amber-300 font-bold"><i class="fa-solid fa-plus"></i> 加獎金</button>
+            </div>
+          </div>
+          
+          <div class="text-3xl font-black text-white tracking-tight mb-1">
+            $ {{ (salary + bonus).toLocaleString() }}
+          </div>
+          
+          <div class="text-xs text-slate-400 mb-3 flex gap-3">
+            <span>底薪: ${{ salary.toLocaleString() }}</span>
+            <span v-if="bonus > 0" class="text-amber-400 font-semibold">獎金: +${{ bonus.toLocaleString() }}</span>
+          </div>
+
+          <div class="bg-emerald-950/60 rounded-xl p-3 text-xs text-emerald-300 space-y-1 border border-emerald-800/50">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-heart-pulse text-rose-400 text-sm"></i>
+              <span>已平息 <strong class="text-amber-300 text-sm">{{ bonusCalmPercent }}%</strong> 憤怒值！</span>
+            </div>
+            <p class="text-[11px] text-slate-400 pl-5 leading-tight">{{ salaryQuote }}</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div @click="currentTab = 'muyu'" class="bg-slate-900/80 p-3.5 rounded-2xl border border-amber-500/30 flex items-center gap-3 cursor-pointer hover:border-amber-400 transition">
+            <span class="text-2xl">🪵</span>
+            <div>
+              <div class="text-xs font-bold text-amber-400">離職木魚</div>
+              <div class="text-[10px] text-slate-400">敲擊積累功德與忍耐力</div>
+            </div>
+          </div>
+
+          <div @click="openLetterModal" class="bg-slate-900/80 p-3.5 rounded-2xl border border-rose-500/30 flex items-center gap-3 cursor-pointer hover:border-rose-400 transition">
+            <span class="text-2xl">✉️</span>
+            <div>
+              <div class="text-xs font-bold text-rose-400">離職信產生器</div>
+              <div class="text-[10px] text-slate-400">自動撰寫高情商退場信</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-700/40 p-4 rounded-2xl border border-slate-700">
+          <div class="flex justify-between text-xs mb-2">
+            <span class="text-slate-300">離職集點進度</span>
+            <span class="text-amber-400 font-bold">{{ Math.round((totalPoints / 60) * 100) }}%</span>
+          </div>
+          <div class="w-full bg-slate-900 rounded-full h-3 overflow-hidden p-0.5">
+            <div class="bg-gradient-to-r from-amber-500 to-rose-500 h-full rounded-full transition-all duration-500" :style="{ width: `${(totalPoints / 60) * 100}%` }"></div>
+          </div>
+        </div>
+
+        <button @click="openPunchModal" class="w-full py-4 bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold rounded-2xl shadow-lg shadow-rose-950/50 flex justify-center items-center gap-2 text-lg active:scale-95 transition">
+          <i class="fa-solid fa-circle-plus"></i> ＋ 新增一筆鳥事
+        </button>
+
+        <div class="mt-6">
+          <h3 class="text-sm font-bold text-slate-400 mb-3 flex justify-between items-center">
+            <span>最新離職集點卡</span>
+            <span class="text-xs font-normal text-slate-500">共 {{ logs.length }} 點</span>
+          </h3>
+          
+          <div v-if="logs.length === 0" class="text-center py-8 text-slate-500 text-sm bg-slate-800/50 rounded-2xl border border-dashed border-slate-700">
+            目前還沒有紀錄鳥事，今天過得很順利嗎？🎉
+          </div>
+
+          <div class="space-y-3">
+            <div v-for="(log, index) in logs.slice().reverse().slice(0, 3)" :key="log.id" @click="showLogDetail(log)" class="bg-slate-800 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition cursor-pointer relative overflow-hidden">
+              <div class="flex justify-between items-start mb-2">
+                <span class="text-xs font-bold px-2.5 py-1 bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/30">
+                  第 {{ log.pointNumber }} 點 ‧ {{ log.reason }}
+                </span>
+                <span class="text-xs text-slate-500">{{ log.date }}</span>
+              </div>
+              <p class="text-sm text-slate-300 line-clamp-2 mb-3">{{ log.story || '（這傢伙氣到沒有留下故事...）' }}</p>
+              <div class="bg-slate-900/60 p-2.5 rounded-xl text-xs text-amber-300/90 flex items-start gap-2">
+                <i class="fa-solid fa-comment-dots text-amber-400 mt-0.5"></i>
+                <span class="flex-1">{{ log.aiReply }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="currentTab === 'muyu'" class="flex flex-col items-center justify-between min-h-[500px] py-4">
+        <div class="text-center space-y-1">
+          <div class="text-xs text-amber-400 font-bold uppercase tracking-wider">🪷 職場修煉場</div>
+          <h2 class="text-lg font-black text-slate-100">離職功德木魚</h2>
+          <p class="text-xs text-slate-400">每敲一下，離職的決心就更堅定一分。</p>
+        </div>
+
+        <div class="relative my-8 cursor-pointer select-none flex flex-col items-center" @click="tapMuyu">
+          <div v-for="float in floatTexts" :key="float.id" class="absolute -top-12 text-amber-300 font-black text-lg animate-float pointer-events-none whitespace-nowrap">
+            {{ float.text }}
+          </div>
+
+          <div :class="['w-48 h-48 bg-amber-950/80 rounded-full border-4 border-amber-600/60 shadow-2xl shadow-amber-950/80 flex items-center justify-center relative transition-transform', isMuyuTapped ? 'animate-muyu bg-amber-900' : '']">
+            <img src="https://cdn-icons-png.flaticon.com/512/4311/4311100.png" alt="木魚" class="w-32 h-32 object-contain drop-shadow-2xl">
+          </div>
+          <div class="mt-4 text-xs text-slate-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-hand-pointer text-amber-400"></i> 點擊木魚敲擊 (帶有音效)
+          </div>
+        </div>
+
+        <div class="w-full bg-slate-900/80 p-4 rounded-2xl border border-slate-700 text-center space-y-2">
+          <div class="flex justify-around items-center">
+            <div>
+              <div class="text-[11px] text-slate-400">累積功德</div>
+              <div class="text-2xl font-black text-amber-400">+ {{ muyuMerit }}</div>
+            </div>
+            <div class="w-px h-8 bg-slate-700"></div>
+            <div>
+              <div class="text-[11px] text-slate-400">忍耐力上限</div>
+              <div class="text-2xl font-black text-emerald-400">{{ muyuPatience }} %</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="currentTab === 'stolen'" class="space-y-4">
+        <div class="bg-gradient-to-r from-amber-950/60 to-slate-800 p-5 rounded-2xl border border-amber-500/30 text-center space-y-2">
+          <div class="inline-block px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-bold border border-amber-500/30">
+            🏆 {{ stolenTitle }}
+          </div>
+          <div class="text-xs text-slate-400">已成功偷回的人生價值</div>
+          <div class="text-3xl font-black text-emerald-400">
+            $ {{ stolenTotal.toLocaleString() }}
+          </div>
+          <p class="text-[11px] text-slate-400">「不是鼓勵偷懶，而是提醒你照顧自己的身體與心靈。」</p>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="text-sm font-bold text-slate-200">🎯 今日摸魚小任務</h3>
+            <span class="text-xs text-slate-500">每天偷一點，身體健康點</span>
+          </div>
+
+          <div v-for="task in dailyTasks" :key="task.id" class="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
+            <div class="space-y-1">
+              <div class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                <span>{{ task.icon }}</span>
+                <span>{{ task.title }}</span>
+              </div>
+              <div class="text-xs text-emerald-400 font-semibold">💰 獎勵：偷薪水 + NT${{ task.reward }}</div>
+            </div>
+
+            <button v-if="!task.completed" @click="completeTask(task)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs active:scale-95 transition">
+              完成任務
+            </button>
+            <span v-else class="text-xs text-slate-500 font-bold px-3 py-1.5 bg-slate-900 rounded-lg">
+              ✓ 已偷到手
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="currentTab === 'logs'" class="space-y-4">
+        <h2 class="text-base font-bold text-slate-200 mb-2">📜 離職日記時間軸</h2>
+        <div v-if="logs.length === 0" class="text-center py-12 text-slate-500 text-sm">
+          這裡還是空的，有點點事再回來吧！
+        </div>
+        <div class="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-slate-700">
+          <div v-for="log in logs.slice().reverse()" :key="log.id" class="relative pl-8">
+            <div class="absolute left-1.5 top-1.5 w-4 h-4 bg-rose-500 rounded-full border-4 border-slate-800"></div>
+            <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 space-y-2">
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-amber-400 font-bold">第 {{ log.pointNumber }} 點</span>
+                <span class="text-xs text-slate-500">{{ log.date }}</span>
+              </div>
+              <div class="text-sm font-bold text-slate-200">原因：{{ log.reason }}</div>
+              <p v-if="log.story" class="text-xs text-slate-300 whitespace-pre-line bg-slate-900/40 p-2.5 rounded-xl border border-slate-700/50">{{ log.story }}</p>
+              <div class="text-xs text-rose-300 bg-rose-950/30 p-2.5 rounded-xl border border-rose-900/40 flex items-start gap-1.5">
+                <span>💬</span>
+                <span>{{ log.aiReply }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="currentTab === 'game'" class="flex flex-col items-center justify-between min-h-[480px] py-4">
+        <div class="w-full bg-slate-800 p-3 rounded-2xl border border-slate-700 flex items-center gap-2">
+          <span class="text-xs text-slate-400 whitespace-nowrap">宣洩對象：</span>
+          <input v-model="targetName" type="text" class="bg-slate-900 text-slate-100 text-xs px-3 py-1.5 rounded-lg border border-slate-700 focus:outline-none focus:border-rose-500 flex-1" placeholder="輸入名牌（如：王主管）">
+        </div>
+
+        <div class="relative my-8 cursor-pointer select-none" @click="hitPunchBag">
+          <div v-if="showHitText" class="absolute -top-10 left-1/2 -translate-x-1/2 text-2xl font-black text-amber-400 animate-bounce whitespace-nowrap z-20">
+            {{ currentHitEffect }}
+          </div>
+          
+          <div :class="['w-40 h-56 bg-rose-700 rounded-full border-4 border-rose-900 shadow-2xl flex flex-col items-center justify-center relative transition-transform', isHitting ? 'animate-hit bg-rose-600' : '']">
+            <div class="absolute -top-12 w-2 h-12 bg-slate-600"></div>
+            <div class="bg-amber-100 text-slate-900 font-black text-sm px-3 py-1 rounded shadow-md border border-amber-300 mb-4 max-w-[120px] truncate">
+              {{ targetName || '討厭的傢伙' }}
+            </div>
+            <div class="text-4xl">
+              {{ isHitting ? '😵‍💫' : '😠' }}
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center space-y-1">
+          <div class="text-xs text-slate-400">總宣洩次數 / 連擊</div>
+          <div class="text-3xl font-black text-amber-400">{{ punchScore }} <span class="text-xs font-normal text-slate-400">Combo</span></div>
+          <p class="text-xs text-slate-500">（純粹發洩娛樂，無涉及任何真實暴力哦）</p>
+        </div>
+      </div>
+
+    </main>
+
+    <nav class="absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 flex justify-around p-3 z-10">
+      <button @click="currentTab = 'home'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'home' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+        <i class="fa-solid fa-house text-base"></i>
+        <span>主頁</span>
+      </button>
+      <button @click="currentTab = 'muyu'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'muyu' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+        <i class="fa-solid fa-drum text-base"></i>
+        <span>木魚</span>
+      </button>
+      <button @click="currentTab = 'stolen'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'stolen' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+        <i class="fa-solid fa-user-ninja text-base"></i>
+        <span>薪水小偷</span>
+      </button>
+      <button @click="currentTab = 'logs'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'logs' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+        <i class="fa-solid fa-book-bookmark text-base"></i>
+        <span>日記</span>
+      </button>
+      <button @click="currentTab = 'game'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'game' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+        <i class="fa-solid fa-hand-fist text-base"></i>
+        <span>沙包</span>
+      </button>
+    </nav>
+
+    <div v-if="isPunchModalOpen" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="bg-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 border border-slate-700 space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center">
+          <h3 class="text-base font-bold text-slate-100">📌 新增一筆鳥事（集點 +1）</h3>
+          <button @click="isPunchModalOpen = false" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-xs text-slate-400">選擇發生了什麼事：</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button v-for="r in presetReasons" :key="r" @click="selectedReason = r" :class="['p-2.5 rounded-xl text-xs font-medium border text-left transition', selectedReason === r ? 'bg-rose-600/30 border-rose-500 text-rose-200' : 'bg-slate-900/60 border-slate-700 text-slate-300']">
+              {{ r }}
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-xs text-slate-400">寫下故事細節（可不填）：</label>
+          <textarea v-model="storyText" rows="3" class="w-full bg-slate-900 text-slate-100 text-xs p-3 rounded-xl border border-slate-700 focus:outline-none focus:border-rose-500" placeholder="例如：明明不是我的客戶，他卻直接叫我處理..."></textarea>
+        </div>
+
+        <button @click="submitPunch" class="w-full py-3.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-sm transition">
+          蓋章集點！
+        </button>
+      </div>
+    </div>
+
+    <div v-if="isLetterModalOpen" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-800 w-full max-w-md rounded-3xl p-6 border border-slate-700 space-y-4 relative overflow-hidden max-h-[85vh] flex flex-col justify-between">
+        <div class="flex justify-between items-center">
+          <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+            ✉️ AI 離職信產生器
+          </h3>
+          <button @click="isLetterModalOpen = false" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <div class="flex gap-2">
+          <button @click="letterStyle = 'polite'" :class="['flex-1 py-1.5 rounded-xl text-xs font-bold border transition', letterStyle === 'polite' ? 'bg-rose-600/30 border-rose-500 text-rose-200' : 'bg-slate-900 border-slate-700 text-slate-400']">
+            👔 體面高情商版
+          </button>
+          <button @click="letterStyle = 'honest'" :class="['flex-1 py-1.5 rounded-xl text-xs font-bold border transition', letterStyle === 'honest' ? 'bg-amber-600/30 border-amber-500 text-amber-200' : 'bg-slate-900 border-slate-700 text-slate-400']">
+            🔥 實話酸度拉滿版
+          </button>
+        </div>
+
+        <div class="bg-slate-900 p-4 rounded-2xl border border-slate-700/80 text-xs text-slate-300 leading-relaxed overflow-y-auto max-h-[300px] whitespace-pre-line font-mono">
+          {{ generatedLetter }}
+        </div>
+
+        <button @click="copyLetter" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex justify-center items-center gap-2">
+          <i class="fa-solid fa-copy"></i> 一鍵複製離職信內文
+        </button>
+      </div>
+    </div>
+
+    <div v-if="isSuccessModalOpen" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-700 text-center space-y-4 relative overflow-hidden">
+        <div class="stamp-anim inline-block bg-rose-600 text-white font-black text-xl px-4 py-2 rounded-xl border-4 border-rose-400 shadow-2xl -rotate-12 my-2">
+          怒印 ‧ 集點 +1
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-xs text-slate-400">第 {{ lastLog?.pointNumber }} 點已成功記錄</div>
+          <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-700/80 text-xs text-amber-300 text-left space-y-1">
+            <div class="text-slate-500 font-bold mb-1">🤖 離職小幫手夥伴：</div>
+            <p class="leading-relaxed text-sm font-semibold">{{ lastLog?.aiReply }}</p>
+          </div>
+        </div>
+
+        <button @click="isSuccessModalOpen = false" class="w-full py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl text-xs">
+          我知道了，繼續忍耐
+        </button>
+      </div>
+    </div>
+
+    <div v-if="isGraduationModalOpen" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border-2 border-amber-500/80 text-center space-y-5 relative overflow-hidden shadow-2xl">
+        <div class="text-5xl animate-bounce">🎓</div>
+        <div class="space-y-2">
+          <h2 class="text-2xl font-black text-amber-400 tracking-wide">恭喜！畢業快樂！</h2>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            你已經成功收集滿 <strong class="text-amber-400">60 點委屈</strong>。<br>
+            這代表你已經忍無可忍，不需要再忍了！<br>
+            這份工作配不上你的溫柔與才華，前往下一站吧！
+          </p>
+        </div>
+
+        <div class="bg-slate-900 p-4 rounded-2xl border border-slate-700 text-left space-y-2">
+          <div class="text-xs text-slate-400 font-bold">🎓 畢業證書結算</div>
+          <div class="text-xs text-slate-300">‧ 累積委屈故事：60 篇</div>
+          <div class="text-xs text-slate-300">‧ 偷回人生價值：$ {{ stolenTotal.toLocaleString() }}</div>
+          <div class="text-xs text-slate-300">‧ 敲擊離職木魚：{{ muyuMerit }} 次</div>
+        </div>
+
+        <div class="space-y-2">
+          <button @click="goTo104" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 font-black rounded-2xl text-sm shadow-xl transition active:scale-95 flex justify-center items-center gap-2">
+            <i class="fa-solid fa-rocket"></i> 勇敢飛翔！前往 104 找新工作
+          </button>
+
+          <button @click="resetGame" class="w-full py-2.5 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition">
+            🔄 砍掉重練（重置所有資料從 0 開始）
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const currentTab = ref('home');
+        const salary = ref(58320);
+        const bonus = ref(0);
+        const stolenTotal = ref(0);
+        const logs = ref([]);
+        const targetName = ref('王主管');
+        const punchScore = ref(0);
+        const isHitting = ref(false);
+        const showHitText = ref(false);
+        const currentHitEffect = ref('碰！');
+        const lastReplyIndex = ref(-1);
+
+        // 木魚相關變數
+        const muyuMerit = ref(0);
+        const muyuPatience = ref(100);
+        const isMuyuTapped = ref(false);
+        const floatTexts = ref([]);
+
+        // 離職信相關變數
+        const isLetterModalOpen = ref(false);
+        const letterStyle = ref('polite');
+
+        // Modal 控制
+        const isPunchModalOpen = ref(false);
+        const isSuccessModalOpen = ref(false);
+        const isGraduationModalOpen = ref(false);
+        const selectedReason = ref('老闆情緒勒索');
+        const storyText = ref('');
+        const lastLog = ref(null);
+
+        const presetReasons = [
+          '老闆情緒勒索', '無償加班', '同事甩鍋',
+          '被客人羞辱', '被主管罵', 'KPI 不合理',
+          '想離職但不敢', '今天只是很累'
+        ];
+
+        const aiReplies = [
+          "🥹 蛤……這真的很過分。",
+          "今天辛苦了，你不是一個人。",
+          "已幫你加入離職進度 +1。",
+          "看來今天的薪水還不夠止痛。",
+          "放心，我幫你記住了。",
+          "先忍一下，不代表要忍一輩子。",
+          "這根本不是你的工作吧！到底憑什麼啊？",
+          "辛苦你了...下班快去吃點好吃的壓壓驚。",
+          "傻眼...這種要求我這輩子沒聽過，看在薪水份上我們忍一下。",
+          "拍拍你，不要跟爛人一般見識，集點卡幫你蓋好蓋滿！"
+        ];
+
+        const taskPool = [
+          { id: 1, title: '去裝一杯水', reward: 18, icon: '☕' },
+          { id: 2, title: '上廁所滑手機 5 分鐘', reward: 42, icon: '🚽' },
+          { id: 3, title: '泡咖啡 / 泡茶', reward: 35, icon: '🍵' },
+          { id: 4, title: '去找同事聊天', reward: 55, icon: '🚶' },
+          { id: 5, title: '假裝很忙看手機', reward: 63, icon: '📱' }
+        ];
+
+        const dailyTasks = ref([]);
+
+        const stolenTitle = computed(() => {
+          if (stolenTotal.value >= 100000) return '👑 摸魚之神';
+          if (stolenTotal.value >= 30000) return '🥇 帶薪休息王';
+          if (stolenTotal.value >= 5000) return '🥈 摸魚專家';
+          if (stolenTotal.value >= 500) return '🥉 初級薪水小偷';
+          return '🌱 實習小偷';
+        });
+
+        // 動態生成離職信
+        const generatedLetter = computed(() => {
+          const topReason = getMostFrequentReason() || '職場環境與職涯規劃不符';
+          
+          if (letterStyle.value === 'polite') {
+            return `主管與團隊夥伴你好：\n\n感謝公司一直以來的照顧與指導。經過深思熟慮後，由於個人職涯規劃的考量，我決定提出離職申請。\n\n在職期間，特別是在面對「${topReason}」等相關挑戰時，讓我學習到了許多寶貴的應變經驗。感謝大家陪伴我走過這段時光。\n\n我會盡力做好交接工作，確保業務順暢運作。祝大家工作順利、公司業績蒸蒸日上！\n\n順頌 時祺`;
+          } else {
+            return `親愛的主管與公司：\n\n我寫這封信是為了正式通知您，我要離職了。\n\n在這段時間裡，我深刻體驗到了「${topReason}」的威力，成功將我的忍耐心靈磨練到了極致。但為了我個人的身心健康與人生長遠發展，我決定不再繼續這場修行。\n\n感謝這份工作讓我明確知道自己「未來絕對不想再碰到什麼樣的公司」。祝貴公司早日找到比我更耐操的勇者！\n\n再也不見！`;
+          }
+        });
+
+        const getMostFrequentReason = () => {
+          if (logs.value.length === 0) return null;
+          const counts = {};
+          logs.value.forEach(l => { counts[l.reason] = (counts[l.reason] || 0) + 1; });
+          return Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+        };
+
+        // Web Audio API 模擬敲木魚聲
+        const playMuyuSound = () => {
+          try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.08);
+
+            gain.gain.setValueAtTime(0.8, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.start();
+            osc.stop(ctx.currentTime + 0.08);
+          } catch(e) {}
+        };
+
+        const tapMuyu = () => {
+          playMuyuSound();
+          isMuyuTapped.value = true;
+          muyuMerit.value += 1;
+          muyuPatience.value = Math.max(0, muyuPatience.value - 1);
+          localStorage.setItem('qq_muyu', muyuMerit.value);
+
+          const id = Date.now();
+          const texts = ['功德 +1 🪷', '忍耐力 -1 % 💥', '離職決心 +1 🚀', '平心靜氣 🧘'];
+          const text = texts[Math.floor(Math.random() * texts.length)];
+          floatTexts.value.push({ id, text });
+
+          setTimeout(() => { isMuyuTapped.value = false; }, 100);
+          setTimeout(() => {
+            floatTexts.value = floatTexts.value.filter(f => f.id !== id);
+          }, 800);
+        };
+
+        const openLetterModal = () => {
+          isLetterModalOpen.value = true;
+        };
+
+        const copyLetter = () => {
+          navigator.clipboard.writeText(generatedLetter.value);
+          alert('離職信已複製到剪貼簿！');
+        };
+
+        // 重置遊戲 / 清除 LocalStorage 資料
+        const resetGame = () => {
+          if (confirm('確定要清除所有紀錄，重新從 0 點開始嗎？')) {
+            localStorage.clear();
+            logs.value = [];
+            stolenTotal.value = 0;
+            muyuMerit.value = 0;
+            muyuPatience.value = 100;
+            bonus.value = 0;
+            punchScore.value = 0;
+            isGraduationModalOpen.value = false;
+            dailyTasks.value = taskPool.map(t => ({ ...t, completed: false }));
+            alert('已成功重置！開始全新的修行之旅 💪');
+          }
+        };
+
+        onMounted(() => {
+          const savedLogs = localStorage.getItem('qq_logs');
+          if (savedLogs) logs.value = JSON.parse(savedLogs);
+          const savedSalary = localStorage.getItem('qq_salary');
+          if (savedSalary) salary.value = Number(savedSalary);
+          const savedBonus = localStorage.getItem('qq_bonus');
+          if (savedBonus) bonus.value = Number(savedBonus);
+          const savedStolen = localStorage.getItem('qq_stolen');
+          if (savedStolen) stolenTotal.value = Number(savedStolen);
+          const savedMuyu = localStorage.getItem('qq_muyu');
+          if (savedMuyu) muyuMerit.value = Number(savedMuyu);
+
+          dailyTasks.value = taskPool.map(t => ({ ...t, completed: false }));
+        });
+
+        const totalPoints = computed(() => logs.value.length);
+        const bonusCalmPercent = computed(() => Math.floor(bonus.value / 1000) * 10);
+
+        const salaryQuote = computed(() => {
+          if (bonus.value > 0) return `看在 $${bonus.value.toLocaleString()} 獎金的份上，憤怒值大幅被平息了！錢才是真的！`;
+          const points = totalPoints.value;
+          if (points === 0) return "新的一個月，看在薪水的份上加油！";
+          if (points < 20) return "看在底薪的份上今天再忍一下，加點獎金會更好！";
+          if (points < 40) return "距離發薪補血日不遠了，撐住！";
+          return "怒氣值已達臨界點，離職大門即將為你敞開！";
+        });
+
+        const openPunchModal = () => {
+          storyText.value = '';
+          isPunchModalOpen.value = true;
+        };
+
+        const completeTask = (task) => {
+          task.completed = true;
+          stolenTotal.value += task.reward;
+          localStorage.setItem('qq_stolen', stolenTotal.value);
+        };
+
+        const triggerGraduation = () => {
+          isGraduationModalOpen.value = true;
+          if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+        };
+
+        const submitPunch = () => {
+          let randomIndex;
+          do {
+            randomIndex = Math.floor(Math.random() * aiReplies.length);
+          } while (randomIndex === lastReplyIndex.value && aiReplies.length > 1);
+          lastReplyIndex.value = randomIndex;
+
+          const newLog = {
+            id: Date.now(),
+            pointNumber: logs.value.length + 1,
+            reason: selectedReason.value,
+            story: storyText.value,
+            aiReply: aiReplies[randomIndex],
+            date: new Date().toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
+          };
+
+          logs.value.push(newLog);
+          localStorage.setItem('qq_logs', JSON.stringify(logs.value));
+          lastLog.value = newLog;
+          isPunchModalOpen.value = false;
+
+          if (logs.value.length >= 60) triggerGraduation();
+          else isSuccessModalOpen.value = true;
+        };
+
+        const editSalary = () => {
+          const val = prompt('請輸入您的本月底薪：', salary.value);
+          if (val && !isNaN(val)) {
+            salary.value = Number(val);
+            localStorage.setItem('qq_salary', salary.value);
+          }
+        };
+
+        const addBonus = () => {
+          const val = prompt('請輸入本月新增的獎金金額：', bonus.value);
+          if (val !== null && !isNaN(val)) {
+            bonus.value = Number(val);
+            localStorage.setItem('qq_bonus', bonus.value);
+          }
+        };
+
+        const goTo104 = () => window.open('https://www.104.com.tw/jobs/main/', '_blank');
+
+        const hitPunchBag = () => {
+          punchScore.value += 1;
+          isHitting.value = true;
+          showHitText.value = true;
+          currentHitEffect.value = ['碰！', '砰！', '爽！', 'CRITICAL!'][Math.floor(Math.random() * 4)];
+          setTimeout(() => { isHitting.value = false; }, 150);
+          setTimeout(() => { showHitText.value = false; }, 400);
+        };
+
+        const showLogDetail = (log) => {
+          alert(`【第 ${log.pointNumber} 點】${log.reason}\n\n故事紀錄：\n${log.story || '無'}\n\nAI 拍拍：\n${log.aiReply}`);
+        };
+
+        return {
+          currentTab, salary, bonus, stolenTotal, stolenTitle, dailyTasks,
+          logs, totalPoints, salaryQuote, bonusCalmPercent,
+          isPunchModalOpen, isSuccessModalOpen, isGraduationModalOpen, isLetterModalOpen,
+          presetReasons, selectedReason, storyText, lastLog, letterStyle, generatedLetter,
+          muyuMerit, muyuPatience, isMuyuTapped, floatTexts,
+          openPunchModal, submitPunch, editSalary, addBonus, completeTask, goTo104, resetGame,
+          targetName, punchScore, isHitting, showHitText, currentHitEffect,
+          hitPunchBag, showLogDetail, tapMuyu, openLetterModal, copyLetter
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
+
+    <script src="/script.js"></script>
+  </body>
+
+</html>
