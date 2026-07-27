@@ -14,18 +14,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>離職倒數 Quit Quest</title>
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- Canvas Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Chart.js (圓餅圖) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
   <style>
     @keyframes punch-hit {
       0% { transform: scale(1) rotate(0deg); }
-      25% { transform: scale(0.9) rotate(-10deg); }
-      75% { transform: scale(1.1) rotate(10deg); }
+      25% { transform: scale(0.9) rotate(-12deg); }
+      75% { transform: scale(1.1) rotate(12deg); }
       100% { transform: scale(1) rotate(0deg); }
     }
     .animate-hit { animation: punch-hit 0.15s ease-in-out; }
+
+    /* 🥊 拳擊手套揮拳動畫 */
+    @keyframes glove-punch-left {
+      0% { opacity: 0; transform: translate(-80px, 20px) scale(0.5) rotate(-30deg); }
+      50% { opacity: 1; transform: translate(-20px, -20px) scale(1.3) rotate(-10deg); }
+      100% { opacity: 0; transform: translate(10px, -40px) scale(0.9) rotate(0deg); }
+    }
+    .animate-glove-left { animation: glove-punch-left 0.2s ease-out forwards; }
+
+    @keyframes glove-punch-right {
+      0% { opacity: 0; transform: translate(80px, 20px) scale(0.5) rotate(30deg); }
+      50% { opacity: 1; transform: translate(20px, -20px) scale(1.3) rotate(10deg); }
+      100% { opacity: 0; transform: translate(-10px, -40px) scale(0.9) rotate(0deg); }
+    }
+    .animate-glove-right { animation: glove-punch-right 0.2s ease-out forwards; }
     
     @keyframes Muyu-bounce {
       0% { transform: scale(1); }
@@ -47,18 +69,34 @@
       100% { opacity: 0; transform: translateY(-50px) scale(1.2); }
     }
     .animate-float { animation: float-up 0.8s ease-out forwards; }
+    
+    @keyframes monk-bless {
+      0% { opacity: 0; transform: translateY(30px) scale(0.5); }
+      30% { opacity: 1; transform: translateY(-10px) scale(1.1); }
+      70% { opacity: 1; transform: translateY(-10px) scale(1); }
+      100% { opacity: 0; transform: translateY(-60px) scale(0.8); }
+    }
+    .animate-monk { animation: monk-bless 2.5s ease-in-out forwards; }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex justify-center items-start sm:py-8">
+<body class="bg-slate-900 text-slate-100 min-h-screen flex justify-center items-start sm:py-8 font-sans antialiased select-none">
 
   <div id="app" class="w-full max-w-md bg-slate-800 min-h-screen sm:min-h-[844px] sm:rounded-3xl shadow-2xl flex flex-col justify-between relative overflow-hidden border border-slate-700">
     
+    <!-- 頂部 Header -->
     <header class="p-4 bg-slate-900/80 backdrop-blur border-b border-slate-700 flex justify-between items-center sticky top-0 z-10">
       <div>
         <h1 class="text-xl font-black tracking-wider text-rose-500 flex items-center gap-2">
           <i class="fa-solid fa-fire"></i> 離職倒數 <span class="text-xs text-slate-400 font-normal">Quit Quest</span>
         </h1>
-        <p class="text-xs text-slate-400 mt-0.5">每一份委屈，都值得被記錄。</p>
+        <div class="flex items-center gap-1.5 mt-0.5">
+          <span class="text-[11px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-bold border border-rose-500/30">
+            {{ userTitle || '社畜修行者' }}
+          </span>
+        </div>
       </div>
       <div class="text-right flex items-center gap-3">
         <div>
@@ -71,39 +109,45 @@
       </div>
     </header>
 
-    <main class="flex-1 p-4 overflow-y-auto pb-24">
+    <!-- 主要內容區塊 -->
+    <main class="flex-1 p-4 overflow-y-auto pb-24 no-scrollbar">
       
+      <!-- 主頁 Tab -->
       <div v-if="currentTab === 'home'" class="space-y-4">
-        <div class="bg-gradient-to-br from-emerald-900/40 to-slate-800 p-5 rounded-2xl border border-emerald-500/30 relative overflow-hidden">
-          <div class="flex justify-between items-start mb-2">
-            <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">💰 本月預估總所得</span>
-            <div class="space-x-2">
-              <button @click="editSalary" class="text-xs text-slate-400 hover:text-white"><i class="fa-solid fa-pen"></i> 底薪</button>
-              <button @click="addBonus" class="text-xs text-amber-400 hover:text-amber-300 font-bold"><i class="fa-solid fa-plus"></i> 加獎金</button>
+        
+        <!-- 薪水與時薪資訊面板 -->
+        <div class="bg-gradient-to-br from-emerald-900/40 to-slate-800 p-5 rounded-2xl border border-emerald-500/30 relative overflow-hidden space-y-3">
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider block">💰 月薪總額</span>
+              <div class="text-3xl font-black text-white tracking-tight mt-0.5">
+                $ {{ salary.toLocaleString() }}
+              </div>
             </div>
-          </div>
-          
-          <div class="text-3xl font-black text-white tracking-tight mb-1">
-            $ {{ (salary + bonus).toLocaleString() }}
-          </div>
-          
-          <div class="text-xs text-slate-400 mb-3 flex gap-3">
-            <span>底薪: ${{ salary.toLocaleString() }}</span>
-            <span v-if="bonus > 0" class="text-amber-400 font-semibold">獎金: +${{ bonus.toLocaleString() }}</span>
+            <button @click="isSetupModalOpen = true" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg border border-slate-600 flex items-center gap-1">
+              <i class="fa-solid fa-gear text-slate-400"></i> 設定
+            </button>
           </div>
 
-          <div class="bg-emerald-950/60 rounded-xl p-3 text-xs text-emerald-300 space-y-1 border border-emerald-800/50">
-            <div class="flex items-center gap-2">
-              <i class="fa-solid fa-heart-pulse text-rose-400 text-sm"></i>
-              <span>已平息 <strong class="text-amber-300 text-sm">{{ bonusCalmPercent }}%</strong> 憤怒值！</span>
+          <div class="grid grid-cols-2 gap-2 bg-emerald-950/60 p-3 rounded-xl border border-emerald-800/50 text-xs">
+            <div class="space-y-0.5">
+              <div class="text-slate-400">💵 每天約值</div>
+              <div class="text-base font-bold text-amber-300">${{ dailySalary.toLocaleString() }}</div>
             </div>
-            <p class="text-[11px] text-slate-400 pl-5 leading-tight">{{ salaryQuote }}</p>
+            <div class="space-y-0.5">
+              <div class="text-slate-400">⏰ 每小時約值</div>
+              <div class="text-base font-bold text-emerald-300">${{ hourlySalary.toLocaleString() }}</div>
+            </div>
           </div>
+
+          <p class="text-[11px] text-slate-400 leading-tight">
+            🕒 上班時間：<strong class="text-slate-200">{{ startTime }} ～ {{ endTime }}</strong>（每日工作 {{ workHours }} 小時）
+          </p>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
-          <div @click="currentTab = 'muyu'" class="bg-slate-900/80 p-3.5 rounded-2xl border border-amber-500/30 flex items-center gap-3 cursor-pointer hover:border-amber-400 transition">
-            <span class="text-2xl">🪵</span>
+          <div @click="isMuyuModalOpen = true" class="bg-slate-900/80 p-3.5 rounded-2xl border border-amber-500/30 flex items-center gap-3 cursor-pointer hover:border-amber-400 transition">
+            <span class="text-2xl">🪵🐟</span>
             <div>
               <div class="text-xs font-bold text-amber-400">離職木魚</div>
               <div class="text-[10px] text-slate-400">敲擊積累功德與忍耐力</div>
@@ -125,7 +169,7 @@
             <span class="text-amber-400 font-bold">{{ Math.round((totalPoints / 60) * 100) }}%</span>
           </div>
           <div class="w-full bg-slate-900 rounded-full h-3 overflow-hidden p-0.5">
-            <div class="bg-gradient-to-r from-amber-500 to-rose-500 h-full rounded-full transition-all duration-500" :style="{ width: `${(totalPoints / 60) * 100}%` }"></div>
+            <div class="bg-gradient-to-r from-amber-500 to-rose-500 h-full rounded-full transition-all duration-500" :style="{ width: `${Math.min(100, (totalPoints / 60) * 100)}%` }"></div>
           </div>
         </div>
 
@@ -144,14 +188,19 @@
           </div>
 
           <div class="space-y-3">
-            <div v-for="(log, index) in logs.slice().reverse().slice(0, 3)" :key="log.id" @click="showLogDetail(log)" class="bg-slate-800 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition cursor-pointer relative overflow-hidden">
+            <div v-for="log in logs.slice().reverse().slice(0, 3)" :key="log.id" @click="showLogDetail(log)" class="bg-slate-800 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 transition cursor-pointer relative overflow-hidden">
               <div class="flex justify-between items-start mb-2">
                 <span class="text-xs font-bold px-2.5 py-1 bg-rose-500/20 text-rose-300 rounded-lg border border-rose-500/30">
                   第 {{ log.pointNumber }} 點 ‧ {{ log.reason }}
                 </span>
                 <span class="text-xs text-slate-500">{{ log.date }}</span>
               </div>
-              <p class="text-sm text-slate-300 line-clamp-2 mb-3">{{ log.story || '（這傢伙氣到沒有留下故事...）' }}</p>
+              <p class="text-sm text-slate-300 line-clamp-2 mb-2">{{ log.story || '（這傢伙氣到沒有留下故事...）' }}</p>
+              
+              <div class="text-xs font-bold text-rose-400 mb-2" v-if="log.cost > 0">
+                💸 損失時間成本：${{ log.cost.toLocaleString() }} 元（{{ log.hours }} 小時）
+              </div>
+
               <div class="bg-slate-900/60 p-2.5 rounded-xl text-xs text-amber-300/90 flex items-start gap-2">
                 <i class="fa-solid fa-comment-dots text-amber-400 mt-0.5"></i>
                 <span class="flex-1">{{ log.aiReply }}</span>
@@ -161,41 +210,67 @@
         </div>
       </div>
 
-      <div v-if="currentTab === 'muyu'" class="flex flex-col items-center justify-between min-h-[500px] py-4">
+      <!-- 統計 Tab：月度鳥事回顧 (Work Wrapped) & 圓餅圖 -->
+      <div v-if="currentTab === 'stats'" class="space-y-5">
         <div class="text-center space-y-1">
-          <div class="text-xs text-amber-400 font-bold uppercase tracking-wider">🪷 職場修煉場</div>
-          <h2 class="text-lg font-black text-slate-100">離職功德木魚</h2>
-          <p class="text-xs text-slate-400">每敲一下，離職的決心就更堅定一分。</p>
+          <div class="text-xs text-amber-400 font-bold uppercase tracking-wider">📊 WORK WRAPPED</div>
+          <h2 class="text-xl font-black text-slate-100">月度鳥事回顧</h2>
+          <p class="text-xs text-slate-400">總結這段時間你在職場遭受的修練與成果。</p>
         </div>
 
-        <div class="relative my-8 cursor-pointer select-none flex flex-col items-center" @click="tapMuyu">
-          <div v-for="float in floatTexts" :key="float.id" class="absolute -top-12 text-amber-300 font-black text-lg animate-float pointer-events-none whitespace-nowrap">
-            {{ float.text }}
-          </div>
-
-          <div :class="['w-48 h-48 bg-amber-950/80 rounded-full border-4 border-amber-600/60 shadow-2xl shadow-amber-950/80 flex items-center justify-center relative transition-transform', isMuyuTapped ? 'animate-muyu bg-amber-900' : '']">
-            <img src="https://cdn-icons-png.flaticon.com/512/4311/4311100.png" alt="木魚" class="w-32 h-32 object-contain drop-shadow-2xl">
-          </div>
-          <div class="mt-4 text-xs text-slate-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-hand-pointer text-amber-400"></i> 點擊木魚敲擊 (帶有音效)
+        <!-- 鳥事原因圓餅圖 -->
+        <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-700 flex flex-col items-center">
+          <h3 class="text-xs font-bold text-slate-300 mb-3 w-full text-left flex items-center gap-1.5">
+            <i class="fa-solid fa-chart-pie text-rose-400"></i> 鳥事原因排行榜
+          </h3>
+          <div v-if="logs.length === 0" class="py-12 text-xs text-slate-500">尚無資料，新增鳥事後將自動繪製統計！</div>
+          <div v-else class="w-full max-w-[240px] relative">
+            <canvas id="reasonPieChart"></canvas>
           </div>
         </div>
 
-        <div class="w-full bg-slate-900/80 p-4 rounded-2xl border border-slate-700 text-center space-y-2">
-          <div class="flex justify-around items-center">
-            <div>
-              <div class="text-[11px] text-slate-400">累積功德</div>
-              <div class="text-2xl font-black text-amber-400">+ {{ muyuMerit }}</div>
-            </div>
-            <div class="w-px h-8 bg-slate-700"></div>
-            <div>
-              <div class="text-[11px] text-slate-400">忍耐力上限</div>
-              <div class="text-2xl font-black text-emerald-400">{{ muyuPatience }} %</div>
-            </div>
+        <!-- 數據指標列表 -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
+            <div class="text-xs text-slate-400">😭 本月/累計鳥事</div>
+            <div class="text-xl font-black text-rose-400">{{ logs.length }} 件</div>
           </div>
+          <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
+            <div class="text-xs text-slate-400">👨‍💼 最雷主管/對象</div>
+            <div class="text-sm font-black text-amber-400 truncate">{{ targetName || '王經理' }}</div>
+          </div>
+          <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
+            <div class="text-xs text-slate-400">☕ 偷薪水總價值</div>
+            <div class="text-xl font-black text-emerald-400">NT${{ stolenTotal.toLocaleString() }}</div>
+          </div>
+          <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-700/80 space-y-1">
+            <div class="text-xs text-slate-400">🥊 爆打沙包次數</div>
+            <div class="text-xl font-black text-amber-400">{{ punchScore.toLocaleString() }} 拳</div>
+          </div>
+        </div>
+
+        <!-- 鳥事總成本損失計算 -->
+        <div class="bg-gradient-to-r from-amber-950/40 to-rose-950/40 p-4 rounded-2xl border border-amber-500/30 space-y-2">
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-amber-300 font-bold">💸 遭浪費時間總成本</span>
+            <span class="text-slate-400">累計 {{ totalWastedHours }} 小時</span>
+          </div>
+          <div class="text-xl font-black text-rose-400">NT$ {{ totalWastedCost.toLocaleString() }}</div>
+          <p class="text-[11px] text-slate-400">這些時間如果拿去休息或摸魚，價值可是非常驚人的！</p>
+        </div>
+
+        <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
+          <div>
+            <div class="text-xs text-slate-400">🎉 離職集點卡進度</div>
+            <div class="text-lg font-black text-amber-400">{{ totalPoints }} / 60 {{ totalPoints >= 60 ? '（已畢業🎓）' : '' }}</div>
+          </div>
+          <button @click="copyWrappedText" class="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs active:scale-95 transition">
+            <i class="fa-solid fa-share-nodes"></i> 一鍵分享回顧
+          </button>
         </div>
       </div>
 
+      <!-- 薪水小偷 Tab -->
       <div v-if="currentTab === 'stolen'" class="space-y-4">
         <div class="bg-gradient-to-r from-amber-950/60 to-slate-800 p-5 rounded-2xl border border-amber-500/30 text-center space-y-2">
           <div class="inline-block px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full text-xs font-bold border border-amber-500/30">
@@ -220,7 +295,9 @@
                 <span>{{ task.icon }}</span>
                 <span>{{ task.title }}</span>
               </div>
-              <div class="text-xs text-emerald-400 font-semibold">💰 獎勵：偷薪水 + NT${{ task.reward }}</div>
+              <div class="text-xs text-emerald-400 font-semibold">
+                💰 獎勵：偷薪水 + NT${{ task.reward }}
+              </div>
             </div>
 
             <button v-if="!task.completed" @click="completeTask(task)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs active:scale-95 transition">
@@ -233,12 +310,13 @@
         </div>
       </div>
 
+      <!-- 日記 Tab -->
       <div v-if="currentTab === 'logs'" class="space-y-4">
         <h2 class="text-base font-bold text-slate-200 mb-2">📜 離職日記時間軸</h2>
         <div v-if="logs.length === 0" class="text-center py-12 text-slate-500 text-sm">
           這裡還是空的，有點點事再回來吧！
         </div>
-        <div class="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-slate-700">
+        <div v-else class="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-slate-700">
           <div v-for="log in logs.slice().reverse()" :key="log.id" class="relative pl-8">
             <div class="absolute left-1.5 top-1.5 w-4 h-4 bg-rose-500 rounded-full border-4 border-slate-800"></div>
             <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 space-y-2">
@@ -248,6 +326,11 @@
               </div>
               <div class="text-sm font-bold text-slate-200">原因：{{ log.reason }}</div>
               <p v-if="log.story" class="text-xs text-slate-300 whitespace-pre-line bg-slate-900/40 p-2.5 rounded-xl border border-slate-700/50">{{ log.story }}</p>
+              
+              <div class="text-xs font-bold text-rose-400" v-if="log.cost > 0">
+                💸 時間成本價值：${{ log.cost.toLocaleString() }} 元（{{ log.hours }} 小時）
+              </div>
+
               <div class="text-xs text-rose-300 bg-rose-950/30 p-2.5 rounded-xl border border-rose-900/40 flex items-start gap-1.5">
                 <span>💬</span>
                 <span>{{ log.aiReply }}</span>
@@ -257,17 +340,21 @@
         </div>
       </div>
 
-      <div v-if="currentTab === 'game'" class="flex flex-col items-center justify-between min-h-[480px] py-4">
-        <div class="w-full bg-slate-800 p-3 rounded-2xl border border-slate-700 flex items-center gap-2">
+      <!-- 沙包遊戲 Tab -->
+      <div v-if="currentTab === 'game'" class="flex flex-col items-center justify-between min-h-[480px] py-4 relative">
+        <div class="w-full bg-slate-800 p-3 rounded-2xl border border-slate-700 flex items-center gap-2 z-10">
           <span class="text-xs text-slate-400 whitespace-nowrap">宣洩對象：</span>
-          <input v-model="targetName" type="text" class="bg-slate-900 text-slate-100 text-xs px-3 py-1.5 rounded-lg border border-slate-700 focus:outline-none focus:border-rose-500 flex-1" placeholder="輸入名牌（如：王主管）">
+          <input v-model="targetName" type="text" class="bg-slate-900 text-slate-100 text-xs px-3 py-1.5 rounded-lg border border-slate-700 focus:outline-none focus:border-rose-500 flex-1" placeholder="輸入名牌（如：王經理）">
         </div>
 
-        <div class="relative my-8 cursor-pointer select-none" @click="hitPunchBag">
+        <div class="relative my-8 cursor-pointer select-none flex flex-col items-center" @click="hitPunchBag">
           <div v-if="showHitText" class="absolute -top-10 left-1/2 -translate-x-1/2 text-2xl font-black text-amber-400 animate-bounce whitespace-nowrap z-20">
             {{ currentHitEffect }}
           </div>
           
+          <div v-if="punchSide === 'left'" class="absolute -left-12 top-10 text-6xl animate-glove-left z-30 pointer-events-none">🥊</div>
+          <div v-if="punchSide === 'right'" class="absolute -right-12 top-10 text-6xl animate-glove-right z-30 pointer-events-none" style="transform: scaleX(-1);">🥊</div>
+
           <div :class="['w-40 h-56 bg-rose-700 rounded-full border-4 border-rose-900 shadow-2xl flex flex-col items-center justify-center relative transition-transform', isHitting ? 'animate-hit bg-rose-600' : '']">
             <div class="absolute -top-12 w-2 h-12 bg-slate-600"></div>
             <div class="bg-amber-100 text-slate-900 font-black text-sm px-3 py-1 rounded shadow-md border border-amber-300 mb-4 max-w-[120px] truncate">
@@ -281,36 +368,114 @@
 
         <div class="text-center space-y-1">
           <div class="text-xs text-slate-400">總宣洩次數 / 連擊</div>
-          <div class="text-3xl font-black text-amber-400">{{ punchScore }} <span class="text-xs font-normal text-slate-400">Combo</span></div>
+          <div class="text-3xl font-black text-amber-400">{{ punchScore.toLocaleString() }} <span class="text-xs font-normal text-slate-400">Combo</span></div>
           <p class="text-xs text-slate-500">（純粹發洩娛樂，無涉及任何真實暴力哦）</p>
         </div>
       </div>
 
     </main>
 
+    <!-- 底部導覽列 -->
     <nav class="absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 flex justify-around p-3 z-10">
-      <button @click="currentTab = 'home'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'home' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+      <button @click="switchTab('home')" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'home' ? 'text-rose-500 font-bold' : 'text-slate-500']">
         <i class="fa-solid fa-house text-base"></i>
         <span>主頁</span>
       </button>
-      <button @click="currentTab = 'muyu'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'muyu' ? 'text-rose-500 font-bold' : 'text-slate-500']">
-        <i class="fa-solid fa-drum text-base"></i>
-        <span>木魚</span>
+      <button @click="switchTab('stats')" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'stats' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+        <i class="fa-solid fa-chart-pie text-base"></i>
+        <span>統計</span>
       </button>
-      <button @click="currentTab = 'stolen'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'stolen' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+      <button @click="switchTab('stolen')" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'stolen' ? 'text-rose-500 font-bold' : 'text-slate-500']">
         <i class="fa-solid fa-user-ninja text-base"></i>
         <span>薪水小偷</span>
       </button>
-      <button @click="currentTab = 'logs'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'logs' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+      <button @click="switchTab('logs')" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'logs' ? 'text-rose-500 font-bold' : 'text-slate-500']">
         <i class="fa-solid fa-book-bookmark text-base"></i>
         <span>日記</span>
       </button>
-      <button @click="currentTab = 'game'" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'game' ? 'text-rose-500 font-bold' : 'text-slate-500']">
+      <button @click="switchTab('game')" :class="['flex flex-col items-center text-xs gap-1', currentTab === 'game' ? 'text-rose-500 font-bold' : 'text-slate-500']">
         <i class="fa-solid fa-hand-fist text-base"></i>
         <span>沙包</span>
       </button>
     </nav>
 
+    <!-- Modal: 登入/設定 職涯與薪水 (客製化專屬稱號) -->
+    <div v-if="isSetupModalOpen" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-700 space-y-4 relative text-slate-100">
+        <div class="text-center space-y-1">
+          <div class="text-2xl">💼</div>
+          <h2 class="text-lg font-black">職涯條件設定</h2>
+          <p class="text-xs text-slate-400">填寫上班時間與薪水，系統將換算鳥事成本與稱號！</p>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block text-slate-400 mb-1">⏰ 上班時間區段：</label>
+            <div class="flex items-center gap-2">
+              <input v-model="tempStartTime" type="time" class="bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-100 w-full text-center focus:outline-none focus:border-rose-500">
+              <span>～</span>
+              <input v-model="tempEndTime" type="time" class="bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-slate-100 w-full text-center focus:outline-none focus:border-rose-500">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-slate-400 mb-1">💰 每月薪水 (NT$)：</label>
+            <input v-model.number="tempSalary" type="number" placeholder="例如：45000" class="bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100 w-full text-base font-bold focus:outline-none focus:border-rose-500">
+          </div>
+
+          <!-- 即時試算回饋 -->
+          <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700/80 space-y-1.5 text-center">
+            <div class="text-xs text-amber-400 font-bold">💵 每天約值 ${{ tempDailySalary.toLocaleString() }}</div>
+            <div class="text-xs text-emerald-400 font-bold">⏰ 每小時約值 ${{ tempHourlySalary.toLocaleString() }}</div>
+          </div>
+        </div>
+
+        <button @click="saveSetup" class="w-full py-3.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-sm transition active:scale-95 shadow-lg shadow-rose-950/50">
+          生成專屬稱號 & 開始修行！
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal: 離職木魚 Popup -->
+    <div v-if="isMuyuModalOpen" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-700 space-y-4 relative text-center">
+        <button @click="isMuyuModalOpen = false" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+        
+        <div class="space-y-1">
+          <div class="text-xs text-amber-400 font-bold uppercase tracking-wider">🪷 職場修煉場</div>
+          <h2 class="text-lg font-black text-slate-100">離職功德木魚</h2>
+        </div>
+
+        <div v-if="showMonk" class="absolute top-1/3 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center animate-monk pointer-events-none">
+          <div class="text-6xl drop-shadow-lg">🧙‍♂️</div>
+          <div class="bg-amber-400 text-slate-950 font-black text-xs px-3 py-1.5 rounded-full shadow-lg mt-2 whitespace-nowrap">
+            ✨ 送走怨念 ‧ 趨吉避凶 ✨
+          </div>
+        </div>
+
+        <div class="relative my-6 cursor-pointer select-none flex flex-col items-center" @click="tapMuyu">
+          <div v-for="float in floatTexts" :key="float.id" class="absolute -top-10 text-amber-300 font-black text-sm animate-float pointer-events-none whitespace-nowrap">
+            {{ float.text }}
+          </div>
+
+          <div :class="['w-40 h-40 bg-amber-950/80 rounded-full border-4 border-amber-600/60 shadow-2xl flex items-center justify-center relative transition-transform', isMuyuTapped ? 'animate-muyu bg-amber-900' : '']">
+            <div class="flex items-center justify-center text-5xl gap-1">
+              <span>🪵</span>
+              <span>🐟</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-700 flex justify-around text-xs">
+          <div>累積功德: <strong class="text-amber-400">+{{ muyuMerit }}</strong></div>
+          <div>連擊: <strong class="text-emerald-400">{{ muyuCombo }}/10</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: 新增鳥事 (加入小時成本換算) -->
     <div v-if="isPunchModalOpen" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div class="bg-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 border border-slate-700 space-y-4 max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center">
@@ -328,6 +493,16 @@
         </div>
 
         <div class="space-y-1.5">
+          <label class="text-xs text-slate-400">這件事浪費/加班了多久？（小時）：</label>
+          <div class="flex items-center gap-2">
+            <input v-model.number="wastedHours" type="number" step="0.5" min="0" class="bg-slate-900 text-slate-100 text-sm p-3 rounded-xl border border-slate-700 focus:outline-none focus:border-rose-500 w-full font-bold">
+            <span class="text-xs text-amber-400 font-bold whitespace-nowrap">
+              ≈ ${{ Math.round(wastedHours * hourlySalary) }} 元
+            </span>
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
           <label class="text-xs text-slate-400">寫下故事細節（可不填）：</label>
           <textarea v-model="storyText" rows="3" class="w-full bg-slate-900 text-slate-100 text-xs p-3 rounded-xl border border-slate-700 focus:outline-none focus:border-rose-500" placeholder="例如：明明不是我的客戶，他卻直接叫我處理..."></textarea>
         </div>
@@ -338,6 +513,7 @@
       </div>
     </div>
 
+    <!-- Modal: 離職信產生器 -->
     <div v-if="isLetterModalOpen" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-800 w-full max-w-md rounded-3xl p-6 border border-slate-700 space-y-4 relative overflow-hidden max-h-[85vh] flex flex-col justify-between">
         <div class="flex justify-between items-center">
@@ -352,7 +528,7 @@
             👔 體面高情商版
           </button>
           <button @click="letterStyle = 'honest'" :class="['flex-1 py-1.5 rounded-xl text-xs font-bold border transition', letterStyle === 'honest' ? 'bg-amber-600/30 border-amber-500 text-amber-200' : 'bg-slate-900 border-slate-700 text-slate-400']">
-            🔥 實話酸度拉滿版
+            🔥 酸言酸語版
           </button>
         </div>
 
@@ -366,6 +542,7 @@
       </div>
     </div>
 
+    <!-- Modal: 新增成功提示 (顯示成本試算) -->
     <div v-if="isSuccessModalOpen" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border border-slate-700 text-center space-y-4 relative overflow-hidden">
         <div class="stamp-anim inline-block bg-rose-600 text-white font-black text-xl px-4 py-2 rounded-xl border-4 border-rose-400 shadow-2xl -rotate-12 my-2">
@@ -374,9 +551,10 @@
 
         <div class="space-y-2">
           <div class="text-xs text-slate-400">第 {{ lastLog?.pointNumber }} 點已成功記錄</div>
-          <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-700/80 text-xs text-amber-300 text-left space-y-1">
-            <div class="text-slate-500 font-bold mb-1">🤖 離職小幫手夥伴：</div>
-            <p class="leading-relaxed text-sm font-semibold">{{ lastLog?.aiReply }}</p>
+          
+          <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-700/80 text-xs text-amber-300 text-left space-y-2">
+            <div class="text-slate-500 font-bold">🤖 離職夥伴回應：</div>
+            <p class="leading-relaxed text-sm font-semibold text-slate-100">{{ lastLog?.aiReply }}</p>
           </div>
         </div>
 
@@ -386,71 +564,64 @@
       </div>
     </div>
 
-    <div v-if="isGraduationModalOpen" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-6 border-2 border-amber-500/80 text-center space-y-5 relative overflow-hidden shadow-2xl">
-        <div class="text-5xl animate-bounce">🎓</div>
-        <div class="space-y-2">
-          <h2 class="text-2xl font-black text-amber-400 tracking-wide">恭喜！畢業快樂！</h2>
-          <p class="text-xs text-slate-300 leading-relaxed">
-            你已經成功收集滿 <strong class="text-amber-400">60 點委屈</strong>。<br>
-            這代表你已經忍無可忍，不需要再忍了！<br>
-            這份工作配不上你的溫柔與才華，前往下一站吧！
-          </p>
-        </div>
-
-        <div class="bg-slate-900 p-4 rounded-2xl border border-slate-700 text-left space-y-2">
-          <div class="text-xs text-slate-400 font-bold">🎓 畢業證書結算</div>
-          <div class="text-xs text-slate-300">‧ 累積委屈故事：60 篇</div>
-          <div class="text-xs text-slate-300">‧ 偷回人生價值：$ {{ stolenTotal.toLocaleString() }}</div>
-          <div class="text-xs text-slate-300">‧ 敲擊離職木魚：{{ muyuMerit }} 次</div>
-        </div>
-
-        <div class="space-y-2">
-          <button @click="goTo104" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 font-black rounded-2xl text-sm shadow-xl transition active:scale-95 flex justify-center items-center gap-2">
-            <i class="fa-solid fa-rocket"></i> 勇敢飛翔！前往 104 找新工作
-          </button>
-
-          <button @click="resetGame" class="w-full py-2.5 bg-slate-700/60 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition">
-            🔄 砍掉重練（重置所有資料從 0 開始）
-          </button>
-        </div>
-      </div>
-    </div>
-
   </div>
 
   <script>
-    const { createApp, ref, computed, onMounted } = Vue;
+    const { createApp, ref, computed, onMounted, nextTick } = Vue;
 
     createApp({
       setup() {
         const currentTab = ref('home');
-        const salary = ref(58320);
+        
+        // 客製化設定與稱號
+        const isSetupModalOpen = ref(false);
+        const startTime = ref('09:00');
+        const endTime = ref('18:00');
+        const salary = ref(45000);
+        const userTitle = ref('');
+
+        const tempStartTime = ref('09:00');
+        const tempEndTime = ref('18:00');
+        const tempSalary = ref(45000);
+
+        const titlesPool = [
+          '☕ 咖啡續命型社畜',
+          '🥷 忍者型社畜',
+          '📞 客服地獄倖存者',
+          '💼 會議生還者',
+          '🧯 天天救火工程師',
+          '🧾 KPI 奴隸',
+          '🌙 夜班吸血鬼',
+          '🎭 情緒管理大師'
+        ];
+
         const bonus = ref(0);
         const stolenTotal = ref(0);
         const logs = ref([]);
-        const targetName = ref('王主管');
+        const targetName = ref('王經理');
         const punchScore = ref(0);
         const isHitting = ref(false);
+        const punchSide = ref(null);
         const showHitText = ref(false);
         const currentHitEffect = ref('碰！');
-        const lastReplyIndex = ref(-1);
 
-        // 木魚相關變數
+        // 木魚 Modal 與數據
+        const isMuyuModalOpen = ref(false);
         const muyuMerit = ref(0);
-        const muyuPatience = ref(100);
+        const muyuCombo = ref(0);
         const isMuyuTapped = ref(false);
         const floatTexts = ref([]);
+        const showMonk = ref(false);
 
-        // 離職信相關變數
-        const isLetterModalOpen = ref(false);
-        const letterStyle = ref('polite');
+        let pieChart = null;
 
         // Modal 控制
         const isPunchModalOpen = ref(false);
         const isSuccessModalOpen = ref(false);
-        const isGraduationModalOpen = ref(false);
+        const isLetterModalOpen = ref(false);
+        const letterStyle = ref('polite');
         const selectedReason = ref('老闆情緒勒索');
+        const wastedHours = ref(1);
         const storyText = ref('');
         const lastLog = ref(null);
 
@@ -460,74 +631,200 @@
           '想離職但不敢', '今天只是很累'
         ];
 
-        const aiReplies = [
-          "🥹 蛤……這真的很過分。",
-          "今天辛苦了，你不是一個人。",
-          "已幫你加入離職進度 +1。",
-          "看來今天的薪水還不夠止痛。",
-          "放心，我幫你記住了。",
-          "先忍一下，不代表要忍一輩子。",
-          "這根本不是你的工作吧！到底憑什麼啊？",
-          "辛苦你了...下班快去吃點好吃的壓壓驚。",
-          "傻眼...這種要求我這輩子沒聽過，看在薪水份上我們忍一下。",
-          "拍拍你，不要跟爛人一般見識，集點卡幫你蓋好蓋滿！"
-        ];
+        // 薪水與時薪計算
+        const workHours = computed(() => {
+          const [sH, sM] = startTime.value.split(':').map(Number);
+          const [eH, eM] = endTime.value.split(':').map(Number);
+          let hours = (eH + eM / 60) - (sH + sM / 60);
+          return hours > 0 ? hours : 8;
+        });
+
+        const dailySalary = computed(() => Math.round(salary.value / 22));
+        const hourlySalary = computed(() => Math.round(dailySalary.value / workHours.value));
+
+        const tempDailySalary = computed(() => Math.round((tempSalary.value || 0) / 22));
+        const tempHourlySalary = computed(() => {
+          const [sH, sM] = (tempStartTime.value || '09:00').split(':').map(Number);
+          const [eH, eM] = (tempEndTime.value || '18:00').split(':').map(Number);
+          let hours = (eH + eM / 60) - (sH + sM / 60);
+          return Math.round(tempDailySalary.value / (hours > 0 ? hours : 8));
+        });
+
+        // 總浪費時間與成本
+        const totalWastedHours = computed(() => logs.value.reduce((acc, l) => acc + (l.hours || 0), 0));
+        const totalWastedCost = computed(() => logs.value.reduce((acc, l) => acc + (l.cost || 0), 0));
 
         const taskPool = [
           { id: 1, title: '去裝一杯水', reward: 18, icon: '☕' },
           { id: 2, title: '上廁所滑手機 5 分鐘', reward: 42, icon: '🚽' },
-          { id: 3, title: '泡咖啡 / 泡茶', reward: 35, icon: '🍵' },
-          { id: 4, title: '去找同事聊天', reward: 55, icon: '🚶' },
-          { id: 5, title: '假裝很忙看手機', reward: 63, icon: '📱' }
+          { id: 3, title: '看似很忙 實則滑手機', reward: 50, icon: '📱' },
+          { id: 4, title: '出去走走 行光合作用', reward: 60, icon: '🌿' },
+          { id: 5, title: '泡咖啡 / 泡茶', reward: 35, icon: '🍵' },
+          { id: 6, title: '去找同事聊天', reward: 55, icon: '🚶' }
         ];
 
         const dailyTasks = ref([]);
 
         const stolenTitle = computed(() => {
-          if (stolenTotal.value >= 100000) return '👑 摸魚之神';
           if (stolenTotal.value >= 30000) return '🥇 帶薪休息王';
           if (stolenTotal.value >= 5000) return '🥈 摸魚專家';
-          if (stolenTotal.value >= 500) return '🥉 初級薪水小偷';
-          return '🌱 實習小偷';
+          return '🌱 初級薪水小偷';
         });
 
-        // 動態生成離職信
         const generatedLetter = computed(() => {
-          const topReason = getMostFrequentReason() || '職場環境與職涯規劃不符';
-          
           if (letterStyle.value === 'polite') {
-            return `主管與團隊夥伴你好：\n\n感謝公司一直以來的照顧與指導。經過深思熟慮後，由於個人職涯規劃的考量，我決定提出離職申請。\n\n在職期間，特別是在面對「${topReason}」等相關挑戰時，讓我學習到了許多寶貴的應變經驗。感謝大家陪伴我走過這段時光。\n\n我會盡力做好交接工作，確保業務順暢運作。祝大家工作順利、公司業績蒸蒸日上！\n\n順頌 時祺`;
+            return `主管與團隊夥伴你好：\n\n感謝公司一直以來的照顧與指導。經過深思熟慮後，由於個人職涯規劃的考量，我決定提出離職申請。\n\n在職期間，特別是在面對「職場環境與職涯規劃不符」等相關挑戰時，讓我學習到了許多寶貴的應變經驗。感謝大家陪伴我走過這段時光。\n\n我會盡力做好交接工作，確保業務順暢運作。祝大家工作順利、公司業績蒸蒸日上！\n\n順頌 時祺`;
           } else {
-            return `親愛的主管與公司：\n\n我寫這封信是為了正式通知您，我要離職了。\n\n在這段時間裡，我深刻體驗到了「${topReason}」的威力，成功將我的忍耐心靈磨練到了極致。但為了我個人的身心健康與人生長遠發展，我決定不再繼續這場修行。\n\n感謝這份工作讓我明確知道自己「未來絕對不想再碰到什麼樣的公司」。祝貴公司早日找到比我更耐操的勇者！\n\n再也不見！`;
+            return `親愛的主管與公司：\n\n我寫這封信是為了正式通知您，我要離職了。\n\n在這段時間裡，我深刻體驗到了「職場環境與職涯規劃不符」的威力，成功將我的忍耐心靈磨練到了極致。但為了我個人的身心健康與人生長遠發展，我決定不再繼續這場修行。\n\n感謝這份工作讓我明確知道自己「未來絕對不想再碰到什麼樣的公司」。祝貴公司早日找到比我更耐操的勇者！\n\n再也不見！`;
           }
         });
 
-        const getMostFrequentReason = () => {
-          if (logs.value.length === 0) return null;
-          const counts = {};
-          logs.value.forEach(l => { counts[l.reason] = (counts[l.reason] || 0) + 1; });
-          return Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+        const saveSetup = () => {
+          startTime.value = tempStartTime.value;
+          endTime.value = tempEndTime.value;
+          salary.value = tempSalary.value;
+
+          if (!userTitle.value) {
+            const randomTitle = titlesPool[Math.floor(Math.random() * titlesPool.length)];
+            userTitle.value = randomTitle;
+            localStorage.setItem('qq_title', randomTitle);
+          }
+
+          localStorage.setItem('qq_setup', JSON.stringify({
+            startTime: startTime.value,
+            endTime: endTime.value,
+            salary: salary.value
+          }));
+
+          isSetupModalOpen.value = false;
         };
 
-        // Web Audio API 模擬敲木魚聲
+        const switchTab = (tab) => {
+          currentTab.value = tab;
+          if (tab === 'stats') {
+            nextTick(() => renderPieChart());
+          }
+        };
+
+        const renderPieChart = () => {
+          const ctx = document.getElementById('reasonPieChart');
+          if (!ctx) return;
+
+          const counts = {};
+          logs.value.forEach(l => { counts[l.reason] = (counts[l.reason] || 0) + 1; });
+          
+          const labels = Object.keys(counts);
+          const data = Object.values(counts);
+
+          if (pieChart) pieChart.destroy();
+
+          pieChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+              labels: labels.length ? labels : ['無資料'],
+              datasets: [{
+                data: data.length ? data : [1],
+                backgroundColor: ['#f43f5e', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6']
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: { color: '#94a3b8', font: { size: 10 } }
+                }
+              }
+            }
+          });
+        };
+
+        const copyWrappedText = () => {
+          const text = `📊 【月度鳥事回顧 Work Wrapped】\n` +
+            `🏷️ 稱號：${userTitle.value}\n` +
+            `😭 本月鳥事：${logs.value.length} 件\n` +
+            `💸 時間成本損失：NT$${totalWastedCost.value.toLocaleString()}\n` +
+            `👨‍💼 最雷對象：${targetName.value || '王經理'}\n` +
+            `☕ 偷薪水總計：NT$${stolenTotal.value.toLocaleString()}\n` +
+            `🥊 爆打沙包：${punchScore.value} 拳\n` +
+            `🎉 離職進度：${totalPoints.value}/60\n` +
+            `— 來自《離職倒數 Quit Quest》`;
+          
+          navigator.clipboard.writeText(text);
+          alert('月度回顧文字已複製！快去分享給朋友吧！');
+        };
+
+        // Web Audio API 初始化與音效合成
+        let audioCtx = null;
+        const initAudio = () => {
+          if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+        };
+
+        // 木魚音效
         const playMuyuSound = () => {
           try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(600, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.08);
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+          } catch(e) {}
+        };
 
-            gain.gain.setValueAtTime(0.8, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+        // 打擊音效
+        const playPunchSound = () => {
+          try {
+            initAudio();
+            const now = audioCtx.currentTime;
 
-            osc.connect(gain);
-            gain.connect(ctx.destination);
+            const osc = audioCtx.createOscillator();
+            const oscGain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(180, now);
+            osc.frequency.exponentialRampToValueAtTime(30, now + 0.15);
 
-            osc.start();
-            osc.stop(ctx.currentTime + 0.08);
+            oscGain.gain.setValueAtTime(1, now);
+            oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+            osc.connect(oscGain);
+            oscGain.connect(audioCtx.destination);
+
+            const bufferSize = audioCtx.sampleRate * 0.08;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+              data[i] = Math.random() * 2 - 1;
+            }
+
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1000, now);
+
+            const noiseGain = audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(0.8, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+            noise.connect(filter);
+            filter.connect(noiseGain);
+            noiseGain.connect(audioCtx.destination);
+
+            osc.start(now);
+            osc.stop(now + 0.15);
+            noise.start(now);
+            noise.stop(now + 0.08);
           } catch(e) {}
         };
 
@@ -535,75 +832,33 @@
           playMuyuSound();
           isMuyuTapped.value = true;
           muyuMerit.value += 1;
-          muyuPatience.value = Math.max(0, muyuPatience.value - 1);
+          muyuCombo.value += 1;
           localStorage.setItem('qq_muyu', muyuMerit.value);
 
-          const id = Date.now();
-          const texts = ['功德 +1 🪷', '忍耐力 -1 % 💥', '離職決心 +1 🚀', '平心靜氣 🧘'];
-          const text = texts[Math.floor(Math.random() * texts.length)];
-          floatTexts.value.push({ id, text });
-
-          setTimeout(() => { isMuyuTapped.value = false; }, 100);
-          setTimeout(() => {
-            floatTexts.value = floatTexts.value.filter(f => f.id !== id);
-          }, 800);
-        };
-
-        const openLetterModal = () => {
-          isLetterModalOpen.value = true;
-        };
-
-        const copyLetter = () => {
-          navigator.clipboard.writeText(generatedLetter.value);
-          alert('離職信已複製到剪貼簿！');
-        };
-
-        // 重置遊戲 / 清除 LocalStorage 資料
-        const resetGame = () => {
-          if (confirm('確定要清除所有紀錄，重新從 0 點開始嗎？')) {
-            localStorage.clear();
-            logs.value = [];
-            stolenTotal.value = 0;
-            muyuMerit.value = 0;
-            muyuPatience.value = 100;
-            bonus.value = 0;
-            punchScore.value = 0;
-            isGraduationModalOpen.value = false;
-            dailyTasks.value = taskPool.map(t => ({ ...t, completed: false }));
-            alert('已成功重置！開始全新的修行之旅 💪');
+          let text = '功德 +1 🪵🐟';
+          if (muyuCombo.value >= 10) {
+            muyuCombo.value = 0;
+            muyuMerit.value += 10;
+            showMonk.value = true;
+            text = '✨ 功德爆發 +10！和尚來超渡怨念！';
+            setTimeout(() => { showMonk.value = false; }, 2500);
           }
+
+          const id = Date.now();
+          floatTexts.value.push({ id, text });
+          setTimeout(() => { isMuyuTapped.value = false; }, 100);
+          setTimeout(() => { floatTexts.value = floatTexts.value.filter(f => f.id !== id); }, 800);
         };
 
-        onMounted(() => {
-          const savedLogs = localStorage.getItem('qq_logs');
-          if (savedLogs) logs.value = JSON.parse(savedLogs);
-          const savedSalary = localStorage.getItem('qq_salary');
-          if (savedSalary) salary.value = Number(savedSalary);
-          const savedBonus = localStorage.getItem('qq_bonus');
-          if (savedBonus) bonus.value = Number(savedBonus);
-          const savedStolen = localStorage.getItem('qq_stolen');
-          if (savedStolen) stolenTotal.value = Number(savedStolen);
-          const savedMuyu = localStorage.getItem('qq_muyu');
-          if (savedMuyu) muyuMerit.value = Number(savedMuyu);
-
-          dailyTasks.value = taskPool.map(t => ({ ...t, completed: false }));
-        });
-
-        const totalPoints = computed(() => logs.value.length);
-        const bonusCalmPercent = computed(() => Math.floor(bonus.value / 1000) * 10);
-
-        const salaryQuote = computed(() => {
-          if (bonus.value > 0) return `看在 $${bonus.value.toLocaleString()} 獎金的份上，憤怒值大幅被平息了！錢才是真的！`;
-          const points = totalPoints.value;
-          if (points === 0) return "新的一個月，看在薪水的份上加油！";
-          if (points < 20) return "看在底薪的份上今天再忍一下，加點獎金會更好！";
-          if (points < 40) return "距離發薪補血日不遠了，撐住！";
-          return "怒氣值已達臨界點，離職大門即將為你敞開！";
-        });
-
-        const openPunchModal = () => {
-          storyText.value = '';
-          isPunchModalOpen.value = true;
+        const hitPunchBag = () => {
+          playPunchSound();
+          punchScore.value += 1;
+          isHitting.value = true;
+          showHitText.value = true;
+          punchSide.value = Math.random() > 0.5 ? 'left' : 'right';
+          currentHitEffect.value = ['碰！', '砰！', '爽！', 'CRITICAL!'][Math.floor(Math.random() * 4)];
+          setTimeout(() => { isHitting.value = false; punchSide.value = null; }, 200);
+          setTimeout(() => { showHitText.value = false; }, 400);
         };
 
         const completeTask = (task) => {
@@ -612,24 +867,68 @@
           localStorage.setItem('qq_stolen', stolenTotal.value);
         };
 
-        const triggerGraduation = () => {
-          isGraduationModalOpen.value = true;
-          if (typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+        const openLetterModal = () => { isLetterModalOpen.value = true; };
+        const copyLetter = () => { navigator.clipboard.writeText(generatedLetter.value); alert('已複製離職信內文！'); };
+
+        const resetGame = () => {
+          if (confirm('確定重置所有資料與設定？')) {
+            localStorage.clear();
+            logs.value = [];
+            stolenTotal.value = 0;
+            muyuMerit.value = 0;
+            punchScore.value = 0;
+            userTitle.value = '';
+            isSetupModalOpen.value = true;
+            alert('已成功重置！');
+          }
+        };
+
+        onMounted(() => {
+          const savedSetup = localStorage.getItem('qq_setup');
+          if (savedSetup) {
+            const data = JSON.parse(savedSetup);
+            startTime.value = data.startTime;
+            endTime.value = data.endTime;
+            salary.value = data.salary;
+            tempStartTime.value = data.startTime;
+            tempEndTime.value = data.endTime;
+            tempSalary.value = data.salary;
+          } else {
+            isSetupModalOpen.value = true;
+          }
+
+          const savedTitle = localStorage.getItem('qq_title');
+          if (savedTitle) userTitle.value = savedTitle;
+
+          const savedLogs = localStorage.getItem('qq_logs');
+          if (savedLogs) logs.value = JSON.parse(savedLogs);
+
+          const savedStolen = localStorage.getItem('qq_stolen');
+          if (savedStolen) stolenTotal.value = Number(savedStolen);
+
+          dailyTasks.value = taskPool.map(t => ({ ...t, completed: false }));
+        });
+
+        const totalPoints = computed(() => logs.value.length);
+
+        const openPunchModal = () => { 
+          storyText.value = ''; 
+          wastedHours.value = 1;
+          isPunchModalOpen.value = true; 
         };
 
         const submitPunch = () => {
-          let randomIndex;
-          do {
-            randomIndex = Math.floor(Math.random() * aiReplies.length);
-          } while (randomIndex === lastReplyIndex.value && aiReplies.length > 1);
-          lastReplyIndex.value = randomIndex;
+          const cost = Math.round(wastedHours.value * hourlySalary.value);
+          const aiText = `這件鳥事折算你的薪水，相當於損失了 ${cost} 元！不要為他浪費生命！`;
 
           const newLog = {
             id: Date.now(),
             pointNumber: logs.value.length + 1,
             reason: selectedReason.value,
+            hours: wastedHours.value,
+            cost: cost,
             story: storyText.value,
-            aiReply: aiReplies[randomIndex],
+            aiReply: aiText,
             date: new Date().toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
           };
 
@@ -637,55 +936,444 @@
           localStorage.setItem('qq_logs', JSON.stringify(logs.value));
           lastLog.value = newLog;
           isPunchModalOpen.value = false;
-
-          if (logs.value.length >= 60) triggerGraduation();
-          else isSuccessModalOpen.value = true;
+          isSuccessModalOpen.value = true;
         };
 
-        const editSalary = () => {
-          const val = prompt('請輸入您的本月底薪：', salary.value);
-          if (val && !isNaN(val)) {
-            salary.value = Number(val);
-            localStorage.setItem('qq_salary', salary.value);
-          }
-        };
-
-        const addBonus = () => {
-          const val = prompt('請輸入本月新增的獎金金額：', bonus.value);
-          if (val !== null && !isNaN(val)) {
-            bonus.value = Number(val);
-            localStorage.setItem('qq_bonus', bonus.value);
-          }
-        };
-
-        const goTo104 = () => window.open('https://www.104.com.tw/jobs/main/', '_blank');
-
-        const hitPunchBag = () => {
-          punchScore.value += 1;
-          isHitting.value = true;
-          showHitText.value = true;
-          currentHitEffect.value = ['碰！', '砰！', '爽！', 'CRITICAL!'][Math.floor(Math.random() * 4)];
-          setTimeout(() => { isHitting.value = false; }, 150);
-          setTimeout(() => { showHitText.value = false; }, 400);
-        };
-
-        const showLogDetail = (log) => {
-          alert(`【第 ${log.pointNumber} 點】${log.reason}\n\n故事紀錄：\n${log.story || '無'}\n\nAI 拍拍：\n${log.aiReply}`);
-        };
+        const showLogDetail = (log) => alert(`【第 ${log.pointNumber} 點】${log.reason}\n浪費時間：${log.hours} 小時 (${log.cost} 元)\n${log.story || '無'}`);
 
         return {
-          currentTab, salary, bonus, stolenTotal, stolenTitle, dailyTasks,
-          logs, totalPoints, salaryQuote, bonusCalmPercent,
-          isPunchModalOpen, isSuccessModalOpen, isGraduationModalOpen, isLetterModalOpen,
-          presetReasons, selectedReason, storyText, lastLog, letterStyle, generatedLetter,
-          muyuMerit, muyuPatience, isMuyuTapped, floatTexts,
-          openPunchModal, submitPunch, editSalary, addBonus, completeTask, goTo104, resetGame,
-          targetName, punchScore, isHitting, showHitText, currentHitEffect,
-          hitPunchBag, showLogDetail, tapMuyu, openLetterModal, copyLetter
+          currentTab, salary, bonus, stolenTotal, stolenTitle, dailyTasks, logs, totalPoints,
+          isPunchModalOpen, isSuccessModalOpen, isLetterModalOpen, isMuyuModalOpen, isSetupModalOpen,
+          presetReasons, selectedReason, wastedHours, storyText, lastLog, letterStyle, generatedLetter,
+          muyuMerit, muyuCombo, isMuyuTapped, floatTexts, showMonk, targetName, punchScore, isHitting,
+          punchSide, showHitText, currentHitEffect, switchTab, copyWrappedText, openPunchModal, 
+          submitPunch, completeTask, resetGame, hitPunchBag, showLogDetail, tapMuyu, openLetterModal, 
+          copyLetter, startTime, endTime, workHours, dailySalary, hourlySalary, userTitle,
+          tempStartTime, tempEndTime, tempSalary, tempDailySalary, tempHourlySalary, saveSetup,
+          totalWastedHours, totalWastedCost
         };
       }
     }).mount('#app');
-  </script>
+  <script>
+  const { createApp, ref, computed, onMounted, nextTick } = Vue;
+
+  createApp({
+    setup() {
+      const currentTab = ref('home');
+      
+      // 客製化設定與稱號
+      const isSetupModalOpen = ref(false);
+      const startTime = ref('09:00');
+      const endTime = ref('18:00');
+      const salary = ref(45000);
+      const userTitle = ref('');
+
+      const tempStartTime = ref('09:00');
+      const tempEndTime = ref('18:00');
+      const tempSalary = ref(45000);
+
+      const titlesPool = [
+        '☕ 咖啡續命型社畜',
+        '🥷 忍者型社畜',
+        '📞 客服地獄倖存者',
+        '💼 會議生還者',
+        '🧯 天天救火工程師',
+        '🧾 KPI 奴隸',
+        '🌙 夜班吸血鬼',
+        '🎭 情緒管理大師'
+      ];
+
+      const bonus = ref(0);
+      const stolenTotal = ref(0);
+      const logs = ref([]);
+      const targetName = ref('王經理');
+      const punchScore = ref(0);
+      const isHitting = ref(false);
+      const punchSide = ref(null);
+      const showHitText = ref(false);
+      const currentHitEffect = ref('碰！');
+
+      // 木魚 Modal 與數據
+      const isMuyuModalOpen = ref(false);
+      const muyuMerit = ref(0);
+      const muyuCombo = ref(0);
+      const isMuyuTapped = ref(false);
+      const floatTexts = ref([]);
+      const showMonk = ref(false);
+
+      let pieChart = null;
+
+      // Modal 控制
+      const isPunchModalOpen = ref(false);
+      const isSuccessModalOpen = ref(false);
+      const isLetterModalOpen = ref(false);
+      const letterStyle = ref('polite');
+      const selectedReason = ref('老闆情緒勒索');
+      const wastedHours = ref(1);
+      const storyText = ref('');
+      const lastLog = ref(null);
+
+      const presetReasons = [
+        '老闆情緒勒索', '無償加班', '同事甩鍋',
+        '被客人羞辱', '被主管罵', 'KPI 不合理',
+        '想離職但不敢', '今天只是很累'
+      ];
+
+      // 薪水與時薪計算
+      const workHours = computed(() => {
+        const [sH, sM] = startTime.value.split(':').map(Number);
+        const [eH, eM] = endTime.value.split(':').map(Number);
+        let hours = (eH + eM / 60) - (sH + sM / 60);
+        return hours > 0 ? hours : 8;
+      });
+
+      const dailySalary = computed(() => Math.round(salary.value / 22));
+      const hourlySalary = computed(() => Math.round(dailySalary.value / workHours.value));
+
+      const tempDailySalary = computed(() => Math.round((tempSalary.value || 0) / 22));
+      const tempHourlySalary = computed(() => {
+        const [sH, sM] = (tempStartTime.value || '09:00').split(':').map(Number);
+        const [eH, eM] = (tempEndTime.value || '18:00').split(':').map(Number);
+        let hours = (eH + eM / 60) - (sH + sM / 60);
+        return Math.round(tempDailySalary.value / (hours > 0 ? hours : 8));
+      });
+
+      // 總浪費時間與成本
+      const totalWastedHours = computed(() => logs.value.reduce((acc, l) => acc + (l.hours || 0), 0));
+      const totalWastedCost = computed(() => logs.value.reduce((acc, l) => acc + (l.cost || 0), 0));
+
+      const taskPool = [
+        { id: 1, title: '去裝一杯水', reward: 18, icon: '☕' },
+        { id: 2, title: '上廁所滑手機 5 分鐘', reward: 42, icon: '🚽' },
+        { id: 3, title: '看似很忙 實則滑手機', reward: 50, icon: '📱' },
+        { id: 4, title: '出去走走 行光合作用', reward: 60, icon: '🌿' },
+        { id: 5, title: '泡咖啡 / 泡茶', reward: 35, icon: '🍵' },
+        { id: 6, title: '去找同事聊天', reward: 55, icon: '🚶' }
+      ];
+
+      const dailyTasks = ref([]);
+
+      const stolenTitle = computed(() => {
+        if (stolenTotal.value >= 30000) return '🥇 帶薪休息王';
+        if (stolenTotal.value >= 5000) return '🥈 摸魚專家';
+        return '🌱 初級薪水小偷';
+      });
+
+      const generatedLetter = computed(() => {
+        if (letterStyle.value === 'polite') {
+          return `主管與團隊夥伴你好：\n\n感謝公司一直以來的照顧與指導。經過深思熟慮後，由於個人職涯規劃的考量，我決定提出離職申請。\n\n在職期間，特別是在面對「職場環境與職涯規劃不符」等相關挑戰時，讓我學習到了許多寶貴的應變經驗。感謝大家陪伴我走過這段時光。\n\n我會盡力做好交接工作，確保業務順暢運作。祝大家工作順利、公司業績蒸蒸日上！\n\n順頌 時祺`;
+        } else {
+          return `親愛的主管與公司：\n\n我寫這封信是為了正式通知您，我要離職了。\n\n在這段時間裡，我深刻體驗到了「職場環境與職涯規劃不符」的威力，成功將我的忍耐心靈磨練到了極致。但為了我個人的身心健康與人生長遠發展，我決定不再繼續這場修行。\n\n感謝這份工作讓我明確知道自己「未來絕對不想再碰到什麼樣的公司」。祝貴公司早日找到比我更耐操的勇者！\n\n再也不見！`;
+        }
+      });
+
+      const saveSetup = () => {
+        startTime.value = tempStartTime.value;
+        endTime.value = tempEndTime.value;
+        salary.value = tempSalary.value;
+
+        if (!userTitle.value) {
+          const randomTitle = titlesPool[Math.floor(Math.random() * titlesPool.length)];
+          userTitle.value = randomTitle;
+          localStorage.setItem('qq_title', randomTitle);
+        }
+
+        localStorage.setItem('qq_setup', JSON.stringify({
+          startTime: startTime.value,
+          endTime: endTime.value,
+          salary: salary.value
+        }));
+
+        isSetupModalOpen.value = false;
+      };
+
+      const switchTab = (tab) => {
+        currentTab.value = tab;
+        if (tab === 'stats') {
+          nextTick(() => renderPieChart());
+        }
+      };
+
+      const renderPieChart = () => {
+        const ctx = document.getElementById('reasonPieChart');
+        if (!ctx) return;
+
+        const counts = {};
+        logs.value.forEach(l => { counts[l.reason] = (counts[l.reason] || 0) + 1; });
+        
+        const labels = Object.keys(counts);
+        const data = Object.values(counts);
+
+        if (pieChart) pieChart.destroy();
+
+        pieChart = new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: labels.length ? labels : ['無資料'],
+            datasets: [{
+              data: data.length ? data : [1],
+              backgroundColor: ['#f43f5e', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f472b6']
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#94a3b8', font: { size: 10 } }
+              }
+            }
+          }
+        });
+      };
+
+      const copyWrappedText = () => {
+        const text = `📊 【月度鳥事回顧 Work Wrapped】\n` +
+          `🏷️ 稱號：${userTitle.value}\n` +
+          `😭 本月鳥事：${logs.value.length} 件\n` +
+          `💸 時間成本損失：NT$${totalWastedCost.value.toLocaleString()}\n` +
+          `👨‍💼 最雷對象：${targetName.value || '王經理'}\n` +
+          `☕ 偷薪水總計：NT$${stolenTotal.value.toLocaleString()}\n` +
+          `🥊 爆打沙包：${punchScore.value} 拳\n` +
+          `🎉 離職進度：${totalPoints.value}/60\n` +
+          `— 來自《離職倒數 Quit Quest》`;
+        
+        navigator.clipboard.writeText(text);
+        alert('月度回顧文字已複製！快去分享給朋友吧！');
+      };
+
+      // ----------------------------------------------------
+      // 🔊 Web Audio API 聲音引擎（修復解鎖政策）
+      // ----------------------------------------------------
+      let audioCtx = null;
+
+      const initAudio = () => {
+        if (!audioCtx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            audioCtx = new AudioContext();
+          }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+      };
+
+      // 綁定全域第一次點擊，強制解鎖音效權限
+      const unlockAudio = () => {
+        initAudio();
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('touchstart', unlockAudio);
+      };
+      window.addEventListener('click', unlockAudio);
+      window.addEventListener('touchstart', unlockAudio);
+
+      // 🪵🐟 木魚音效
+      const playMuyuSound = () => {
+        try {
+          initAudio();
+          if (!audioCtx) return;
+
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.08);
+
+          gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start();
+          osc.stop(audioCtx.currentTime + 0.08);
+        } catch(e) {
+          console.error('Audio error:', e);
+        }
+      };
+
+      // 🥊 打擊沙包音效
+      const playPunchSound = () => {
+        try {
+          initAudio();
+          if (!audioCtx) return;
+
+          const now = audioCtx.currentTime;
+
+          // 重低音衝擊
+          const osc = audioCtx.createOscillator();
+          const oscGain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.exponentialRampToValueAtTime(30, now + 0.15);
+
+          oscGain.gain.setValueAtTime(1, now);
+          oscGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+          osc.connect(oscGain);
+          oscGain.connect(audioCtx.destination);
+
+          // 白雜音碰撞聲
+          const bufferSize = audioCtx.sampleRate * 0.08;
+          const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+          }
+
+          const noise = audioCtx.createBufferSource();
+          noise.buffer = buffer;
+
+          const filter = audioCtx.createBiquadFilter();
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(1000, now);
+
+          const noiseGain = audioCtx.createGain();
+          noiseGain.gain.setValueAtTime(0.8, now);
+          noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+          noise.connect(filter);
+          filter.connect(noiseGain);
+          noiseGain.connect(audioCtx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.15);
+          noise.start(now);
+          noise.stop(now + 0.08);
+        } catch(e) {
+          console.error('Audio error:', e);
+        }
+      };
+
+      const tapMuyu = () => {
+        playMuyuSound();
+        isMuyuTapped.value = true;
+        muyuMerit.value += 1;
+        muyuCombo.value += 1;
+        localStorage.setItem('qq_muyu', muyuMerit.value);
+
+        let text = '功德 +1 🪵🐟';
+        if (muyuCombo.value >= 10) {
+          muyuCombo.value = 0;
+          muyuMerit.value += 10;
+          showMonk.value = true;
+          text = '✨ 功德爆發 +10！和尚來超渡怨念！';
+          setTimeout(() => { showMonk.value = false; }, 2500);
+        }
+
+        const id = Date.now();
+        floatTexts.value.push({ id, text });
+        setTimeout(() => { isMuyuTapped.value = false; }, 100);
+        setTimeout(() => { floatTexts.value = floatTexts.value.filter(f => f.id !== id); }, 800);
+      };
+
+      const hitPunchBag = () => {
+        playPunchSound();
+        punchScore.value += 1;
+        isHitting.value = true;
+        showHitText.value = true;
+        punchSide.value = Math.random() > 0.5 ? 'left' : 'right';
+        currentHitEffect.value = ['碰！', '砰！', '爽！', 'CRITICAL!'][Math.floor(Math.random() * 4)];
+        setTimeout(() => { isHitting.value = false; punchSide.value = null; }, 200);
+        setTimeout(() => { showHitText.value = false; }, 400);
+      };
+
+      const completeTask = (task) => {
+        task.completed = true;
+        stolenTotal.value += task.reward;
+        localStorage.setItem('qq_stolen', stolenTotal.value);
+      };
+
+      const openLetterModal = () => { isLetterModalOpen.value = true; };
+      const copyLetter = () => { navigator.clipboard.writeText(generatedLetter.value); alert('已複製離職信內文！'); };
+
+      const resetGame = () => {
+        if (confirm('確定重置所有資料與設定？')) {
+          localStorage.clear();
+          logs.value = [];
+          stolenTotal.value = 0;
+          muyuMerit.value = 0;
+          punchScore.value = 0;
+          userTitle.value = '';
+          isSetupModalOpen.value = true;
+          alert('已成功重置！');
+        }
+      };
+
+      onMounted(() => {
+        const savedSetup = localStorage.getItem('qq_setup');
+        if (savedSetup) {
+          const data = JSON.parse(savedSetup);
+          startTime.value = data.startTime;
+          endTime.value = data.endTime;
+          salary.value = data.salary;
+          tempStartTime.value = data.startTime;
+          tempEndTime.value = data.endTime;
+          tempSalary.value = data.salary;
+        } else {
+          isSetupModalOpen.value = true;
+        }
+
+        const savedTitle = localStorage.getItem('qq_title');
+        if (savedTitle) userTitle.value = savedTitle;
+
+        const savedLogs = localStorage.getItem('qq_logs');
+        if (savedLogs) logs.value = JSON.parse(savedLogs);
+
+        const savedStolen = localStorage.getItem('qq_stolen');
+        if (savedStolen) stolenTotal.value = Number(savedStolen);
+
+        dailyTasks.value = taskPool.map(t => ({ ...t, completed: false }));
+      });
+
+      const totalPoints = computed(() => logs.value.length);
+
+      const openPunchModal = () => { 
+        storyText.value = ''; 
+        wastedHours.value = 1;
+        isPunchModalOpen.value = true; 
+      };
+
+      const submitPunch = () => {
+        const cost = Math.round(wastedHours.value * hourlySalary.value);
+        const aiText = `這件鳥事折算你的薪水，相當於損失了 ${cost} 元！不要為他浪費生命！`;
+
+        const newLog = {
+          id: Date.now(),
+          pointNumber: logs.value.length + 1,
+          reason: selectedReason.value,
+          hours: wastedHours.value,
+          cost: cost,
+          story: storyText.value,
+          aiReply: aiText,
+          date: new Date().toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' })
+        };
+
+        logs.value.push(newLog);
+        localStorage.setItem('qq_logs', JSON.stringify(logs.value));
+        lastLog.value = newLog;
+        isPunchModalOpen.value = false;
+        isSuccessModalOpen.value = true;
+      };
+
+      const showLogDetail = (log) => alert(`【第 ${log.pointNumber} 點】${log.reason}\n浪費時間：${log.hours} 小時 (${log.cost} 元)\n${log.story || '無'}`);
+
+      return {
+        currentTab, salary, bonus, stolenTotal, stolenTitle, dailyTasks, logs, totalPoints,
+        isPunchModalOpen, isSuccessModalOpen, isLetterModalOpen, isMuyuModalOpen, isSetupModalOpen,
+        presetReasons, selectedReason, wastedHours, storyText, lastLog, letterStyle, generatedLetter,
+        muyuMerit, muyuCombo, isMuyuTapped, floatTexts, showMonk, targetName, punchScore, isHitting,
+        punchSide, showHitText, currentHitEffect, switchTab, copyWrappedText, openPunchModal, 
+        submitPunch, completeTask, resetGame, hitPunchBag, showLogDetail, tapMuyu, openLetterModal, 
+        copyLetter, startTime, endTime, workHours, dailySalary, hourlySalary, userTitle,
+        tempStartTime, tempEndTime, tempSalary, tempDailySalary, tempHourlySalary, saveSetup,
+        totalWastedHours, totalWastedCost
+      };
+    }
+  }).mount('#app');
+</script>
 </body>
 </html>
 
